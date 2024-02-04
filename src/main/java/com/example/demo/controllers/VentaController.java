@@ -31,9 +31,36 @@ public class VentaController {
   @Autowired
   private ProductoRepository productoRepo;
 
+  // En el método obtenerVentas del controlador de VentaController
   @GetMapping
-  public List<Venta> obtenerVentas() {
-    return ventaRepo.findAll();
+  public List<Map<String, Object>> obtenerVentas() {
+    List<Venta> ventas = ventaRepo.findAll();
+    List<Map<String, Object>> ventasConDetalles = new ArrayList<>();
+
+    for (Venta venta : ventas) {
+      Map<String, Object> ventaConDetalles = new HashMap<>();
+      ventaConDetalles.put("id", venta.getId());
+      ventaConDetalles.put("cliente", getClienteMap(venta.getCliente()));
+      ventaConDetalles.put("total", venta.getTotal());
+      ventaConDetalles.put("fechaCreacion", venta.getFechaCreacion());
+      ventaConDetalles.put("cantidadProductos", venta.getCantidadProductos());
+
+      // Utilizar detallesProductos en lugar de la lista completa de productos
+      String detallesProductos = venta.getDetallesProductos();
+      ventaConDetalles.put("detallesProductos", detallesProductos);
+
+      ventasConDetalles.add(ventaConDetalles);
+    }
+
+    return ventasConDetalles;
+  }
+
+  private Map<String, Object> getClienteMap(Cliente cliente) {
+    Map<String, Object> clienteMap = new HashMap<>();
+    clienteMap.put("id", cliente.getId());
+    clienteMap.put("nombre", cliente.getNombre());
+    clienteMap.put("email", cliente.getEmail());
+    return clienteMap;
   }
 
   @PostMapping("alta")
