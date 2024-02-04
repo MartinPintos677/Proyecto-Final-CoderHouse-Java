@@ -5,7 +5,6 @@ import com.example.demo.models.Venta;
 import com.example.demo.repository.ProductoRepository;
 import com.example.demo.repository.VentaRepository;
 
-//import org.apache.el.stream.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
