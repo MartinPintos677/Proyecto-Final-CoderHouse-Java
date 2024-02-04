@@ -6,6 +6,7 @@ import com.example.demo.models.Venta;
 import com.example.demo.repository.ClienteRepository;
 import com.example.demo.repository.ProductoRepository;
 import com.example.demo.repository.VentaRepository;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +14,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -36,7 +40,7 @@ public class VentaController {
   }
 
   @PostMapping("alta")
-  public ResponseEntity<String> crearVenta(@RequestBody Venta venta) {
+  public ResponseEntity<Object> crearVenta(@RequestBody Venta venta) {
     // Verificar si el cliente existe
     Long clienteId = venta.getCliente().getId();
     Optional<Cliente> clienteOptional = clienteRepo.findById(clienteId);
@@ -120,9 +124,6 @@ public class VentaController {
 
     System.out.println("Total de la venta: " + venta.getTotal());
 
-    // Guardar la venta en la base de datos
-    ventaRepo.save(venta);
-
     // Al final de cada venta, mostrar el stock
     List<Producto> stockActualizado = productoRepo.findAll();
     System.out.println("Stock Actualizado después de la venta:");
@@ -130,8 +131,34 @@ public class VentaController {
       System.out.println("Producto: " + producto.getNombre() + ", Stock: " + producto.getStock());
     }
 
+    // Mostrar el comprobante de la venta
+    Map<String, Object> respuesta = new HashMap<>();
+    respuesta.put("Fecha", venta.getFechaCreacion());
+    respuesta.put("Cliente", venta.getCliente().getNombre());
+
+    List<Map<String, Object>> productosVendidosMap = new ArrayList<>();
+    for (Producto producto : venta.getProductos()) {
+      Long productoId = producto.getId();
+      Optional<Producto> productoOptional = productoRepo.findById(productoId);
+
+      if (productoOptional.isPresent()) {
+        Producto productoEnBD = productoOptional.get();
+        Map<String, Object> productoMap = new HashMap<>();
+        productoMap.put("Nombre", productoEnBD.getNombre());
+        productoMap.put("Precio", productoEnBD.getPrecio());
+        productoMap.put("Stock", productoEnBD.getStock());
+        productosVendidosMap.add(productoMap);
+      }
+    }
+    respuesta.put("Productos vendidos", productosVendidosMap);
+
+    respuesta.put("Total de la venta", venta.getTotal());
+
+    // Guardar la venta en la base de datos
+    ventaRepo.save(venta);
+
     // Devolver una respuesta exitosa
-    return ResponseEntity.ok("Venta creada");
+    return ResponseEntity.ok(respuesta);
   }
 
   @DeleteMapping("baja/{id}")
