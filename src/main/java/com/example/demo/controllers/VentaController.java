@@ -6,6 +6,8 @@ import com.example.demo.models.Venta;
 import com.example.demo.repository.ClienteRepository;
 import com.example.demo.repository.ProductoRepository;
 import com.example.demo.repository.VentaRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,11 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @RestController
 @RequestMapping("ventas")
@@ -33,7 +31,6 @@ public class VentaController {
   @Autowired
   private ProductoRepository productoRepo;
 
-  // Método para obtener todas las ventas
   @GetMapping
   public List<Venta> obtenerVentas() {
     return ventaRepo.findAll();
@@ -41,7 +38,6 @@ public class VentaController {
 
   @PostMapping("alta")
   public ResponseEntity<Object> crearVenta(@RequestBody Venta venta) {
-    // Verificar si el cliente existe
     Long clienteId = venta.getCliente().getId();
     Optional<Cliente> clienteOptional = clienteRepo.findById(clienteId);
     if (clienteOptional.isEmpty()) {
@@ -51,11 +47,9 @@ public class VentaController {
     Cliente cliente = clienteOptional.get();
     venta.setCliente(cliente);
 
-    // Verificar si los productos existen y actualizar el stock
     List<Producto> productosVendidos = venta.getProductos();
     boolean stockValido = true;
 
-    // Verificar inicialmente el stock antes de comenzar el bucle
     for (Producto producto : productosVendidos) {
       Long productoId = producto.getId();
       Optional<Producto> productoOptional = productoRepo.findById(productoId);
@@ -67,45 +61,96 @@ public class VentaController {
       }
 
       Producto productoEnBD = productoOptional.get();
-      int nuevoStock = productoEnBD.getStock() - 1; // Ejemplo: Restar uno al stock
+      int nuevoStock = productoEnBD.getStock() - 1;
 
       if (nuevoStock < 0) {
         stockValido = false;
         System.out.println("No hay suficiente stock para el producto con ID " + productoId);
         break;
       }
+
+      // Cargar los detalles completos del producto
+      producto.setNombre(productoEnBD.getNombre());
+      producto.setPrecio(productoEnBD.getPrecio());
+      producto.setStock(productoEnBD.getStock());
     }
 
-    // Si el stock no es válido, no proceder con la venta
     if (!stockValido) {
       return ResponseEntity.badRequest().body("Error en la venta, algunos productos no son válidos");
     }
 
-    // Decrementar el stock dentro del bucle solo si todo está en orden
     for (Producto producto : productosVendidos) {
       Long productoId = producto.getId();
       Producto productoEnBD = productoRepo.getOne(productoId);
-      int nuevoStock = productoEnBD.getStock() - 1; // Ejemplo: Restar uno al stock
+      int nuevoStock = productoEnBD.getStock() - 1;
       productoEnBD.setStock(nuevoStock);
       productoRepo.save(productoEnBD);
     }
 
-    // Calcular el total de la venta dinámicamente
-    BigDecimal totalVenta = BigDecimal.ZERO;
-    for (Producto producto : productosVendidos) {
-      Producto productoEnBD = productoRepo.getOne(producto.getId());
-      totalVenta = totalVenta.add(BigDecimal.valueOf(productoEnBD.getPrecio()));
-    }
+    BigDecimal totalVenta = calcularTotalVenta(productosVendidos);
     venta.setTotal(totalVenta.doubleValue());
 
-    // Calcular la cantidad de productos vendidos
     int cantidadProductosVendidos = productosVendidos.size();
     venta.setCantidadProductos(cantidadProductosVendidos);
 
-    // Establecer la fecha de creación
     venta.setFechaCreacion(LocalDateTime.now());
 
-    // Mostrar el comprobante de la venta
+    mostrarComprobanteYActualizarStock(venta);
+
+    Map<String, Object> respuesta = construirRespuesta(venta);
+
+    ObjectMapper objectMapper = new ObjectMapper();
+    try {
+      List<Map<String, Object>> detallesProductosList = new ArrayList<>();
+      for (Producto producto : productosVendidos) {
+        Map<String, Object> productoMap = new HashMap<>();
+        productoMap.put("Nombre", producto.getNombre());
+        productoMap.put("Precio", producto.getPrecio());
+        productoMap.put("Stock", producto.getStock());
+        detallesProductosList.add(productoMap);
+      }
+      String detallesProductosJson = objectMapper.writeValueAsString(detallesProductosList);
+      venta.setDetallesProductos(detallesProductosJson);
+    } catch (JsonProcessingException e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al convertir productos a JSON");
+    }
+
+    ventaRepo.save(venta);
+
+    return ResponseEntity.ok(respuesta);
+  }
+
+  @DeleteMapping("baja/{id}")
+  public ResponseEntity<String> eliminarVenta(@PathVariable Long id) {
+    if (ventaRepo.existsById(id)) {
+      Venta venta = ventaRepo.getOne(id);
+
+      List<Producto> productosVendidos = venta.getProductos();
+      for (Producto producto : productosVendidos) {
+        Producto productoEnBD = productoRepo.getOne(producto.getId());
+        int nuevoStock = productoEnBD.getStock() + 1;
+        productoEnBD.setStock(nuevoStock);
+        productoRepo.save(productoEnBD);
+      }
+
+      ventaRepo.delete(venta);
+
+      return ResponseEntity.ok("Venta eliminada");
+    } else {
+      return ResponseEntity.status(HttpStatus.CONFLICT).body("Venta no encontrada");
+    }
+  }
+
+  private BigDecimal calcularTotalVenta(List<Producto> productos) {
+    BigDecimal totalVenta = BigDecimal.ZERO;
+    for (Producto producto : productos) {
+      Producto productoEnBD = productoRepo.getOne(producto.getId());
+      totalVenta = totalVenta.add(BigDecimal.valueOf(productoEnBD.getPrecio()));
+    }
+    return totalVenta;
+  }
+
+  private void mostrarComprobanteYActualizarStock(Venta venta) {
     System.out.println("\nComprobante de la venta:");
     System.out.println("Fecha: " + venta.getFechaCreacion());
     System.out.println("Cliente: " + venta.getCliente().getNombre());
@@ -124,14 +169,14 @@ public class VentaController {
 
     System.out.println("Total de la venta: " + venta.getTotal());
 
-    // Al final de cada venta, mostrar el stock
     List<Producto> stockActualizado = productoRepo.findAll();
     System.out.println("Stock Actualizado después de la venta:");
     for (Producto producto : stockActualizado) {
       System.out.println("Producto: " + producto.getNombre() + ", Stock: " + producto.getStock());
     }
+  }
 
-    // Mostrar el comprobante de la venta
+  private Map<String, Object> construirRespuesta(Venta venta) {
     Map<String, Object> respuesta = new HashMap<>();
     respuesta.put("Fecha", venta.getFechaCreacion());
     respuesta.put("Cliente", venta.getCliente().getNombre());
@@ -154,33 +199,6 @@ public class VentaController {
 
     respuesta.put("Total de la venta", venta.getTotal());
 
-    // Guardar la venta en la base de datos
-    ventaRepo.save(venta);
-
-    // Devolver una respuesta exitosa
-    return ResponseEntity.ok(respuesta);
-  }
-
-  @DeleteMapping("baja/{id}")
-  public ResponseEntity<String> eliminarVenta(@PathVariable Long id) {
-    if (ventaRepo.existsById(id)) {
-      Venta venta = ventaRepo.getOne(id);
-
-      // Devolver el stock a los productos vendidos
-      List<Producto> productosVendidos = venta.getProductos();
-      for (Producto producto : productosVendidos) {
-        Producto productoEnBD = productoRepo.getOne(producto.getId());
-        int nuevoStock = productoEnBD.getStock() + 1; // Incrementar uno al stock
-        productoEnBD.setStock(nuevoStock);
-        productoRepo.save(productoEnBD);
-      }
-
-      // Eliminar la venta de la base de datos
-      ventaRepo.delete(venta);
-
-      return ResponseEntity.ok("Venta eliminada");
-    } else {
-      return ResponseEntity.status(HttpStatus.CONFLICT).body("Venta no encontrada");
-    }
+    return respuesta;
   }
 }

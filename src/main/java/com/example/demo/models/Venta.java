@@ -21,7 +21,7 @@ public class Venta {
   @JoinColumn(name = "cliente_id")
   private Cliente cliente;
 
-  @ManyToMany
+  @ManyToMany(fetch = FetchType.EAGER)
   @JoinTable(name = "venta_producto", joinColumns = @JoinColumn(name = "venta_id"), inverseJoinColumns = @JoinColumn(name = "producto_id"))
   private List<Producto> productos;
 
@@ -33,4 +33,7 @@ public class Venta {
 
   @Column(name = "cantidad_productos")
   private int cantidadProductos;
+
+  @Column(columnDefinition = "TEXT")
+  private String detallesProductos; // Almacena los detalles de los productos en formato JSON
 }
