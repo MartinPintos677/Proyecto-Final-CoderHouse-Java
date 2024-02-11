@@ -1,25 +1,30 @@
 package com.example.demo.controllers;
 
 import com.example.demo.models.Cliente;
+import com.example.demo.models.LineaVenta;
 import com.example.demo.models.Producto;
 import com.example.demo.models.Venta;
 import com.example.demo.repository.ClienteRepository;
 import com.example.demo.repository.ProductoRepository;
 import com.example.demo.repository.VentaRepository;
+import com.example.demo.repository.LineaVentaRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.*;
 
 @RestController
 @RequestMapping("ventas")
@@ -34,7 +39,9 @@ public class VentaController {
   @Autowired
   private ProductoRepository productoRepo;
 
-  // En el método obtenerVentas del controlador de VentaController
+  @Autowired
+  private LineaVentaRepository lineaVentaRepo;
+
   @GetMapping
   public List<Map<String, Object>> obtenerVentas() {
     List<Venta> ventas = ventaRepo.findAll();
@@ -46,11 +53,23 @@ public class VentaController {
       ventaConDetalles.put("cliente", getClienteMap(venta.getCliente()));
       ventaConDetalles.put("total", venta.getTotal());
       ventaConDetalles.put("fechaCreacion", venta.getFechaObtenidaDelServicio());
-      ventaConDetalles.put("cantidadProductos", venta.getCantidadProductos());
 
-      // Utilizar detallesProductos en lugar de la lista completa de productos
-      String detallesProductos = venta.getDetallesProductos();
-      ventaConDetalles.put("detallesProductos", detallesProductos);
+      int cantidadTotalProductos = 0; // Inicializar la cantidad total de productos vendidos
+
+      List<Map<String, Object>> detallesProductosMap = new ArrayList<>();
+      for (LineaVenta linea : venta.getLineas()) {
+        Map<String, Object> lineaMap = new HashMap<>();
+        lineaMap.put("producto", linea.getProducto().getNombre());
+        lineaMap.put("cantidad", linea.getCantidad());
+        detallesProductosMap.add(lineaMap);
+
+        // Sumar la cantidad de productos vendidos en esta línea de venta
+        cantidadTotalProductos += linea.getCantidad();
+      }
+
+      ventaConDetalles.put("cantidadProductos", cantidadTotalProductos); // Agregar la cantidad total de productos
+                                                                         // vendidos
+      ventaConDetalles.put("detallesProductos", detallesProductosMap);
 
       ventasConDetalles.add(ventaConDetalles);
     }
@@ -76,11 +95,23 @@ public class VentaController {
       ventaConDetalles.put("cliente", getClienteMap(venta.getCliente()));
       ventaConDetalles.put("total", venta.getTotal());
       ventaConDetalles.put("fechaCreacion", venta.getFechaObtenidaDelServicio());
-      ventaConDetalles.put("cantidadProductos", venta.getCantidadProductos());
 
-      // Utilizar detallesProductos en lugar de la lista completa de productos
-      String detallesProductos = venta.getDetallesProductos();
-      ventaConDetalles.put("detallesProductos", detallesProductos);
+      int cantidadTotalProductos = 0; // Inicializar la cantidad total de productos vendidos
+
+      List<Map<String, Object>> detallesProductosMap = new ArrayList<>();
+      for (LineaVenta linea : venta.getLineas()) {
+        Map<String, Object> lineaMap = new HashMap<>();
+        lineaMap.put("producto", linea.getProducto().getNombre());
+        lineaMap.put("cantidad", linea.getCantidad());
+        detallesProductosMap.add(lineaMap);
+
+        // Sumar la cantidad de productos vendidos en esta línea de venta
+        cantidadTotalProductos += linea.getCantidad();
+      }
+
+      ventaConDetalles.put("cantidadProductos", cantidadTotalProductos); // Agregar la cantidad total de productos
+                                                                         // vendidos
+      ventaConDetalles.put("detallesProductos", detallesProductosMap);
 
       return ResponseEntity.ok(ventaConDetalles);
     } else {
@@ -89,61 +120,46 @@ public class VentaController {
   }
 
   @PostMapping("alta")
-  public ResponseEntity<Object> crearVenta(@RequestBody Venta venta) {
-    Long clienteId = venta.getCliente().getId();
-    Optional<Cliente> clienteOptional = clienteRepo.findById(clienteId);
-    if (clienteOptional.isEmpty()) {
-      return ResponseEntity.badRequest().body("El cliente con ID " + clienteId + " no existe");
-    }
-
-    Cliente cliente = clienteOptional.get();
+  public ResponseEntity<Object> crearVenta(@RequestBody Venta ventaRequest) {
+    Venta venta = new Venta();
+    Cliente cliente = clienteRepo.findById(ventaRequest.getCliente().getId())
+        .orElseThrow(() -> new IllegalArgumentException("Cliente no encontrado"));
     venta.setCliente(cliente);
 
-    List<Producto> productosVendidos = venta.getProductos();
-    boolean stockValido = true;
+    List<LineaVenta> lineas = new ArrayList<>();
+    int cantidadTotalProductos = 0;
 
-    for (Producto producto : productosVendidos) {
-      Long productoId = producto.getId();
-      Optional<Producto> productoOptional = productoRepo.findById(productoId);
+    for (LineaVenta lineaRequest : ventaRequest.getLineas()) {
+      LineaVenta lineaVenta = new LineaVenta();
+      Producto producto = productoRepo.findById(lineaRequest.getProducto().getId())
+          .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado"));
 
-      if (productoOptional.isEmpty()) {
-        stockValido = false;
-        System.out.println("El producto con ID " + productoId + " no existe");
-        break;
+      // Verificar si la cantidad solicitada supera el stock disponible
+      if (producto.getStock() < lineaRequest.getCantidad()) {
+        return ResponseEntity.badRequest().body("No hay suficiente stock para el producto: " + producto.getNombre());
       }
 
-      Producto productoEnBD = productoOptional.get();
-      int nuevoStock = productoEnBD.getStock() - 1;
+      // Actualizar el stock del producto
+      int nuevoStock = producto.getStock() - lineaRequest.getCantidad();
+      producto.setStock(nuevoStock);
+      productoRepo.save(producto); // Guardar la actualización del stock
 
-      if (nuevoStock < 0) {
-        stockValido = false;
-        System.out.println("No hay suficiente stock para el producto con ID " + productoId);
-        break;
-      }
+      lineaVenta.setProducto(producto);
+      lineaVenta.setCantidad(lineaRequest.getCantidad());
+      lineaVenta.setVenta(venta);
+      lineas.add(lineaVenta);
 
-      // Cargar los detalles completos del producto
-      producto.setNombre(productoEnBD.getNombre());
-      producto.setPrecio(productoEnBD.getPrecio());
-      producto.setStock(productoEnBD.getStock());
+      // Sumar la cantidad de productos vendidos
+      cantidadTotalProductos += lineaRequest.getCantidad();
     }
 
-    if (!stockValido) {
-      return ResponseEntity.badRequest().body("Error en la venta, algunos productos no son válidos");
-    }
+    venta.setLineas(lineas);
+    venta.setCantidadProductos(cantidadTotalProductos);
 
-    for (Producto producto : productosVendidos) {
-      Long productoId = producto.getId();
-      Producto productoEnBD = productoRepo.getOne(productoId);
-      int nuevoStock = productoEnBD.getStock() - 1;
-      productoEnBD.setStock(nuevoStock);
-      productoRepo.save(productoEnBD);
-    }
-
-    BigDecimal totalVenta = calcularTotalVenta(productosVendidos);
+    BigDecimal totalVenta = calcularTotalVenta(lineas);
     venta.setTotal(totalVenta.doubleValue());
 
-    int cantidadProductosVendidos = productosVendidos.size();
-    venta.setCantidadProductos(cantidadProductosVendidos);
+    // Obtener la fecha y realizar otras operaciones necesarias
 
     // Realiza una solicitud HTTP al servicio REST para obtener la fecha
     RestTemplate restTemplate = new RestTemplate();
@@ -156,29 +172,22 @@ public class VentaController {
     // Establece la fecha obtenida en la venta
     venta.setFechaObtenidaDelServicio(fechaObtenidaDelServicio);
 
-    mostrarComprobanteYActualizarStock(venta);
-
-    Map<String, Object> respuesta = construirRespuesta(venta);
-
-    ObjectMapper objectMapper = new ObjectMapper();
-    try {
-      List<Map<String, Object>> detallesProductosList = new ArrayList<>();
-      for (Producto producto : productosVendidos) {
-        Map<String, Object> productoMap = new HashMap<>();
-        productoMap.put("Nombre", producto.getNombre());
-        productoMap.put("Precio", producto.getPrecio());
-        productoMap.put("Stock", producto.getStock());
-        detallesProductosList.add(productoMap);
-      }
-      String detallesProductosJson = objectMapper.writeValueAsString(detallesProductosList);
-      venta.setDetallesProductos(detallesProductosJson);
-    } catch (JsonProcessingException e) {
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al convertir productos a JSON");
-    }
-
+    // Guardar la venta en el repositorio
     ventaRepo.save(venta);
 
-    return ResponseEntity.ok(respuesta);
+    // Realizar otras operaciones necesarias
+
+    return ResponseEntity.ok("Venta creada exitosamente");
+  }
+
+  private BigDecimal calcularTotalVenta(List<LineaVenta> lineas) {
+    BigDecimal totalVenta = BigDecimal.ZERO;
+    for (LineaVenta linea : lineas) {
+      Producto producto = linea.getProducto();
+      BigDecimal subtotal = BigDecimal.valueOf(producto.getPrecio()).multiply(BigDecimal.valueOf(linea.getCantidad()));
+      totalVenta = totalVenta.add(subtotal);
+    }
+    return totalVenta;
   }
 
   @DeleteMapping("baja/{id}")
@@ -186,12 +195,11 @@ public class VentaController {
     if (ventaRepo.existsById(id)) {
       Venta venta = ventaRepo.getOne(id);
 
-      List<Producto> productosVendidos = venta.getProductos();
-      for (Producto producto : productosVendidos) {
-        Producto productoEnBD = productoRepo.getOne(producto.getId());
-        int nuevoStock = productoEnBD.getStock() + 1;
-        productoEnBD.setStock(nuevoStock);
-        productoRepo.save(productoEnBD);
+      for (LineaVenta linea : venta.getLineas()) {
+        Producto producto = linea.getProducto();
+        int nuevoStock = producto.getStock() + linea.getCantidad();
+        producto.setStock(nuevoStock);
+        productoRepo.save(producto);
       }
 
       ventaRepo.delete(venta);
@@ -200,66 +208,5 @@ public class VentaController {
     } else {
       return ResponseEntity.status(HttpStatus.CONFLICT).body("Venta no encontrada");
     }
-  }
-
-  private BigDecimal calcularTotalVenta(List<Producto> productos) {
-    BigDecimal totalVenta = BigDecimal.ZERO;
-    for (Producto producto : productos) {
-      Producto productoEnBD = productoRepo.getOne(producto.getId());
-      totalVenta = totalVenta.add(BigDecimal.valueOf(productoEnBD.getPrecio()));
-    }
-    return totalVenta;
-  }
-
-  private void mostrarComprobanteYActualizarStock(Venta venta) {
-    System.out.println("\nComprobante de la venta:");
-    System.out.println("Fecha: " + venta.getFechaObtenidaDelServicio());
-    System.out.println("Cliente: " + venta.getCliente().getNombre());
-
-    System.out.println("Productos vendidos:");
-    for (Producto producto : venta.getProductos()) {
-      Long productoId = producto.getId();
-      Optional<Producto> productoOptional = productoRepo.findById(productoId);
-
-      if (productoOptional.isPresent()) {
-        Producto productoEnBD = productoOptional.get();
-        System.out.println("  - Nombre: " + productoEnBD.getNombre());
-        System.out.println("    Precio: " + productoEnBD.getPrecio());
-      }
-    }
-
-    System.out.println("Total de la venta: " + venta.getTotal());
-
-    List<Producto> stockActualizado = productoRepo.findAll();
-    System.out.println("Stock Actualizado después de la venta:");
-    for (Producto producto : stockActualizado) {
-      System.out.println("Producto: " + producto.getNombre() + ", Stock: " + producto.getStock());
-    }
-  }
-
-  private Map<String, Object> construirRespuesta(Venta venta) {
-    Map<String, Object> respuesta = new HashMap<>();
-    respuesta.put("Fecha", venta.getFechaObtenidaDelServicio());
-    respuesta.put("Cliente", venta.getCliente().getNombre());
-
-    List<Map<String, Object>> productosVendidosMap = new ArrayList<>();
-    for (Producto producto : venta.getProductos()) {
-      Long productoId = producto.getId();
-      Optional<Producto> productoOptional = productoRepo.findById(productoId);
-
-      if (productoOptional.isPresent()) {
-        Producto productoEnBD = productoOptional.get();
-        Map<String, Object> productoMap = new HashMap<>();
-        productoMap.put("Nombre", productoEnBD.getNombre());
-        productoMap.put("Precio", productoEnBD.getPrecio());
-        productoMap.put("Stock", productoEnBD.getStock());
-        productosVendidosMap.add(productoMap);
-      }
-    }
-    respuesta.put("Productos vendidos", productosVendidosMap);
-
-    respuesta.put("Total de la venta", venta.getTotal());
-
-    return respuesta;
   }
 }
