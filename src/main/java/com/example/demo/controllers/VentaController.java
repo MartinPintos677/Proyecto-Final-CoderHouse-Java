@@ -66,6 +66,28 @@ public class VentaController {
     return clienteMap;
   }
 
+  @GetMapping("{id}")
+  public ResponseEntity<Object> obtenerVentaPorId(@PathVariable Long id) {
+    Optional<Venta> ventaOptional = ventaRepo.findById(id);
+    if (ventaOptional.isPresent()) {
+      Venta venta = ventaOptional.get();
+      Map<String, Object> ventaConDetalles = new HashMap<>();
+      ventaConDetalles.put("id", venta.getId());
+      ventaConDetalles.put("cliente", getClienteMap(venta.getCliente()));
+      ventaConDetalles.put("total", venta.getTotal());
+      ventaConDetalles.put("fechaCreacion", venta.getFechaObtenidaDelServicio());
+      ventaConDetalles.put("cantidadProductos", venta.getCantidadProductos());
+
+      // Utilizar detallesProductos en lugar de la lista completa de productos
+      String detallesProductos = venta.getDetallesProductos();
+      ventaConDetalles.put("detallesProductos", detallesProductos);
+
+      return ResponseEntity.ok(ventaConDetalles);
+    } else {
+      return ResponseEntity.notFound().build();
+    }
+  }
+
   @PostMapping("alta")
   public ResponseEntity<Object> crearVenta(@RequestBody Venta venta) {
     Long clienteId = venta.getCliente().getId();
