@@ -9,10 +9,13 @@ import com.example.demo.repository.VentaRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.time.format.DateTimeFormatter;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -42,7 +45,7 @@ public class VentaController {
       ventaConDetalles.put("id", venta.getId());
       ventaConDetalles.put("cliente", getClienteMap(venta.getCliente()));
       ventaConDetalles.put("total", venta.getTotal());
-      ventaConDetalles.put("fechaCreacion", venta.getFechaCreacion());
+      ventaConDetalles.put("fechaCreacion", venta.getFechaObtenidaDelServicio());
       ventaConDetalles.put("cantidadProductos", venta.getCantidadProductos());
 
       // Utilizar detallesProductos en lugar de la lista completa de productos
@@ -120,7 +123,16 @@ public class VentaController {
     int cantidadProductosVendidos = productosVendidos.size();
     venta.setCantidadProductos(cantidadProductosVendidos);
 
-    venta.setFechaCreacion(LocalDateTime.now());
+    // Realiza una solicitud HTTP al servicio REST para obtener la fecha
+    RestTemplate restTemplate = new RestTemplate();
+    String url = "http://localhost:9090/fecha";
+    String fechaObtenida = restTemplate.getForObject(url, String.class);
+
+    // Parsea la fecha obtenida a LocalDateTime
+    LocalDateTime fechaObtenidaDelServicio = LocalDateTime.parse(fechaObtenida, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+
+    // Establece la fecha obtenida en la venta
+    venta.setFechaObtenidaDelServicio(fechaObtenidaDelServicio);
 
     mostrarComprobanteYActualizarStock(venta);
 
@@ -179,7 +191,7 @@ public class VentaController {
 
   private void mostrarComprobanteYActualizarStock(Venta venta) {
     System.out.println("\nComprobante de la venta:");
-    System.out.println("Fecha: " + venta.getFechaCreacion());
+    System.out.println("Fecha: " + venta.getFechaObtenidaDelServicio());
     System.out.println("Cliente: " + venta.getCliente().getNombre());
 
     System.out.println("Productos vendidos:");
@@ -205,7 +217,7 @@ public class VentaController {
 
   private Map<String, Object> construirRespuesta(Venta venta) {
     Map<String, Object> respuesta = new HashMap<>();
-    respuesta.put("Fecha", venta.getFechaCreacion());
+    respuesta.put("Fecha", venta.getFechaObtenidaDelServicio());
     respuesta.put("Cliente", venta.getCliente().getNombre());
 
     List<Map<String, Object>> productosVendidosMap = new ArrayList<>();

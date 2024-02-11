@@ -28,8 +28,10 @@ public class Venta {
   @Column
   private double total;
 
+  // En la entidad Venta, agregamos un nuevo campo para almacenar la fecha
+  // obtenida del servicio REST
   @Column
-  private LocalDateTime fechaCreacion;
+  private LocalDateTime fechaObtenidaDelServicio;
 
   @Column(name = "cantidad_productos")
   private int cantidadProductos;
