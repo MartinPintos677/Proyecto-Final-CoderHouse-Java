@@ -84,7 +84,7 @@ public class VentaController {
 
       return ResponseEntity.ok(ventaConDetalles);
     } else {
-      return ResponseEntity.notFound().build();
+      return ResponseEntity.status(HttpStatus.CONFLICT).body("Venta no encontrada");
     }
   }
 
