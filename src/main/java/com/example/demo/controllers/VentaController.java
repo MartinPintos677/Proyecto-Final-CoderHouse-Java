@@ -8,8 +8,6 @@ import com.example.demo.repository.ClienteRepository;
 import com.example.demo.repository.ProductoRepository;
 import com.example.demo.repository.VentaRepository;
 import com.example.demo.repository.LineaVentaRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -97,7 +95,7 @@ public class VentaController {
       ventaConDetalles.put("total", venta.getTotal());
       ventaConDetalles.put("fechaCreacion", venta.getFechaObtenidaDelServicio());
 
-      int cantidadTotalProductos = 0; // Inicializar la cantidad total de productos vendidos
+      int cantidadTotalProductos = 0;
 
       List<Map<String, Object>> detallesProductosMap = new ArrayList<>();
       for (LineaVenta linea : venta.getLineas()) {
@@ -111,8 +109,7 @@ public class VentaController {
         cantidadTotalProductos += linea.getCantidad();
       }
 
-      ventaConDetalles.put("cantidadProductos", cantidadTotalProductos); // Agregar la cantidad total de productos
-                                                                         // vendidos
+      ventaConDetalles.put("cantidadProductos", cantidadTotalProductos);
       ventaConDetalles.put("detallesProductos", detallesProductosMap);
 
       return ResponseEntity.ok(ventaConDetalles);
@@ -131,8 +128,8 @@ public class VentaController {
     List<LineaVenta> lineas = new ArrayList<>();
     Map<String, Object> productosVendidos = new HashMap<>(); // Para almacenar los productos vendidos y sus detalles
 
-    BigDecimal totalVenta = BigDecimal.ZERO; // Inicializar el total de la venta
-    int cantidadProductos = 0; // Inicializar la cantidad total de productos vendidos
+    BigDecimal totalVenta = BigDecimal.ZERO;
+    int cantidadProductos = 0;
 
     for (LineaVenta lineaRequest : ventaRequest.getLineas()) {
       LineaVenta lineaVenta = new LineaVenta();
@@ -174,7 +171,8 @@ public class VentaController {
     venta.setTotal(totalVenta.doubleValue()); // Establecer el total de la venta
     venta.setCantidadProductos(cantidadProductos); // Establecer la cantidad total de productos vendidos
 
-    // Obtener la fecha y realizar otras operaciones necesarias
+    // Obtener la fecha del WebService externo y realizar otras operaciones
+    // necesarias
     RestTemplate restTemplate = new RestTemplate();
     String url = "http://localhost:9090/fecha";
     String fechaObtenida = restTemplate.getForObject(url, String.class);

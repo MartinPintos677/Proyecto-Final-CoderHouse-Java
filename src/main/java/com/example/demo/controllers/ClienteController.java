@@ -26,9 +26,9 @@ public class ClienteController {
     }
 
     @PostMapping("alta")
-    public String post(@RequestBody Cliente cliente) {
+    public ResponseEntity<String> post(@RequestBody Cliente cliente) {
         repo.save(cliente);
-        return "Guardado";
+        return ResponseEntity.ok("Cliente guardado");
     }
 
     @PutMapping("modificar/{id}")
@@ -39,17 +39,6 @@ public class ClienteController {
             updateCliente.setEmail(cliente.getEmail());
             repo.save(updateCliente);
             return ResponseEntity.ok("Modificado");
-        } else {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Cliente no encontrado");
-        }
-    }
-
-    @DeleteMapping("baja/{id}")
-    public ResponseEntity<String> delete(@PathVariable Long id) {
-        if (repo.existsById(id)) {
-            Cliente deleteCliente = repo.getOne(id);
-            repo.delete(deleteCliente);
-            return ResponseEntity.ok("Eliminado");
         } else {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Cliente no encontrado");
         }
