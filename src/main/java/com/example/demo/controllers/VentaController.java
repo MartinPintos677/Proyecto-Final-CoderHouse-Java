@@ -61,6 +61,7 @@ public class VentaController {
         Map<String, Object> lineaMap = new HashMap<>();
         lineaMap.put("producto", linea.getProducto().getNombre());
         lineaMap.put("cantidad", linea.getCantidad());
+        lineaMap.put("precioUnidad", linea.getProducto().getPrecio());
         detallesProductosMap.add(lineaMap);
 
         // Sumar la cantidad de productos vendidos en esta línea de venta
@@ -127,7 +128,11 @@ public class VentaController {
     venta.setCliente(cliente);
 
     List<LineaVenta> lineas = new ArrayList<>();
-    int cantidadTotalProductos = 0;
+    Map<String, Integer> productosVendidos = new HashMap<>(); // Para almacenar los productos vendidos y sus cantidades
+
+    BigDecimal totalVenta = BigDecimal.ZERO; // Inicializar el total de la venta
+
+    int cantidadProductos = 0; // Inicializar la cantidad total de productos vendidos
 
     for (LineaVenta lineaRequest : ventaRequest.getLineas()) {
       LineaVenta lineaVenta = new LineaVenta();
@@ -147,17 +152,24 @@ public class VentaController {
       lineaVenta.setProducto(producto);
       lineaVenta.setCantidad(lineaRequest.getCantidad());
       lineaVenta.setVenta(venta);
+      lineaVenta.setPrecioUnitario(producto.getPrecio());
       lineas.add(lineaVenta);
 
-      // Sumar la cantidad de productos vendidos
-      cantidadTotalProductos += lineaRequest.getCantidad();
+      // Agregar el producto y su cantidad al mapa de productos vendidos
+      productosVendidos.put(producto.getNombre(), lineaRequest.getCantidad());
+
+      // Calcular el subtotal de esta línea y sumarlo al total de la venta
+      BigDecimal subtotal = BigDecimal.valueOf(producto.getPrecio())
+          .multiply(BigDecimal.valueOf(lineaRequest.getCantidad()));
+      totalVenta = totalVenta.add(subtotal);
+
+      // Incrementar la cantidad total de productos vendidos
+      cantidadProductos += lineaRequest.getCantidad();
     }
 
     venta.setLineas(lineas);
-    venta.setCantidadProductos(cantidadTotalProductos);
-
-    BigDecimal totalVenta = calcularTotalVenta(lineas);
-    venta.setTotal(totalVenta.doubleValue());
+    venta.setTotal(totalVenta.doubleValue()); // Establecer el total de la venta
+    venta.setCantidadProductos(cantidadProductos); // Establecer la cantidad total de productos vendidos
 
     // Obtener la fecha y realizar otras operaciones necesarias
 
@@ -175,19 +187,23 @@ public class VentaController {
     // Guardar la venta en el repositorio
     ventaRepo.save(venta);
 
-    // Realizar otras operaciones necesarias
-
-    return ResponseEntity.ok("Venta creada exitosamente");
-  }
-
-  private BigDecimal calcularTotalVenta(List<LineaVenta> lineas) {
-    BigDecimal totalVenta = BigDecimal.ZERO;
-    for (LineaVenta linea : lineas) {
-      Producto producto = linea.getProducto();
-      BigDecimal subtotal = BigDecimal.valueOf(producto.getPrecio()).multiply(BigDecimal.valueOf(linea.getCantidad()));
-      totalVenta = totalVenta.add(subtotal);
+    // Obtener el stock actualizado de cada producto y mostrarlo
+    List<Producto> productosActualizados = productoRepo.findAll();
+    Map<String, Integer> stockActualizado = new HashMap<>();
+    for (Producto p : productosActualizados) {
+      stockActualizado.put(p.getNombre(), p.getStock());
     }
-    return totalVenta;
+
+    // Construir el comprobante de la venta
+    Map<String, Object> comprobanteVenta = new HashMap<>();
+    comprobanteVenta.put("fecha", fechaObtenidaDelServicio);
+    comprobanteVenta.put("cliente", cliente);
+    comprobanteVenta.put("productosVendidos", productosVendidos);
+    comprobanteVenta.put("totalVenta", totalVenta.doubleValue());
+    comprobanteVenta.put("stockActualizado", stockActualizado);
+    comprobanteVenta.put("cantidadProductos", cantidadProductos);
+
+    return ResponseEntity.ok(comprobanteVenta);
   }
 
   @DeleteMapping("baja/{id}")

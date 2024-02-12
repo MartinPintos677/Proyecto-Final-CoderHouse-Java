@@ -24,5 +24,7 @@ public class LineaVenta {
   @JoinColumn(name = "producto_id")
   private Producto producto;
 
-  // Otros campos y métodos según sea necesario
+  // AGREGAMOS PRECIO ACÁ ??? CREO QUE SI
+  @Column(name = "precio_unitario")
+  private double precioUnitario;
 }
