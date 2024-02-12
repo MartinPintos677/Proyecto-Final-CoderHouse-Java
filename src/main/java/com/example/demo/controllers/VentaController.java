@@ -66,8 +66,7 @@ public class VentaController {
         cantidadTotalProductos += linea.getCantidad();
       }
 
-      ventaConDetalles.put("cantidadProductos", cantidadTotalProductos); // Agregar la cantidad total de productos
-                                                                         // vendidos
+      ventaConDetalles.put("cantidadProductos", cantidadTotalProductos);
       ventaConDetalles.put("detallesProductos", detallesProductosMap);
 
       ventasConDetalles.add(ventaConDetalles);
