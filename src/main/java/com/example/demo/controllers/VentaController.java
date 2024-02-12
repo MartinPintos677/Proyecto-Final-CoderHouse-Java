@@ -59,7 +59,7 @@ public class VentaController {
         Map<String, Object> lineaMap = new HashMap<>();
         lineaMap.put("producto", linea.getProducto().getNombre());
         lineaMap.put("cantidad", linea.getCantidad());
-        lineaMap.put("precioUnidad", linea.getProducto().getPrecio());
+        lineaMap.put("precioUnidad", linea.getPrecioUnitario());
         detallesProductosMap.add(lineaMap);
 
         // Sumar la cantidad de productos vendidos en esta línea de venta
