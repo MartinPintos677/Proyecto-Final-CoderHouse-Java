@@ -104,6 +104,7 @@ public class VentaController {
         Map<String, Object> lineaMap = new HashMap<>();
         lineaMap.put("producto", linea.getProducto().getNombre());
         lineaMap.put("cantidad", linea.getCantidad());
+        lineaMap.put("precioUnitario", linea.getPrecioUnitario());
         detallesProductosMap.add(lineaMap);
 
         // Sumar la cantidad de productos vendidos en esta línea de venta
@@ -128,10 +129,9 @@ public class VentaController {
     venta.setCliente(cliente);
 
     List<LineaVenta> lineas = new ArrayList<>();
-    Map<String, Integer> productosVendidos = new HashMap<>(); // Para almacenar los productos vendidos y sus cantidades
+    Map<String, Object> productosVendidos = new HashMap<>(); // Para almacenar los productos vendidos y sus detalles
 
     BigDecimal totalVenta = BigDecimal.ZERO; // Inicializar el total de la venta
-
     int cantidadProductos = 0; // Inicializar la cantidad total de productos vendidos
 
     for (LineaVenta lineaRequest : ventaRequest.getLineas()) {
@@ -155,8 +155,11 @@ public class VentaController {
       lineaVenta.setPrecioUnitario(producto.getPrecio());
       lineas.add(lineaVenta);
 
-      // Agregar el producto y su cantidad al mapa de productos vendidos
-      productosVendidos.put(producto.getNombre(), lineaRequest.getCantidad());
+      // Agregar el producto y sus detalles al mapa de productos vendidos
+      Map<String, Object> detalleProducto = new HashMap<>();
+      detalleProducto.put("cantidad", lineaRequest.getCantidad());
+      detalleProducto.put("precioUnitario", producto.getPrecio());
+      productosVendidos.put(producto.getNombre(), detalleProducto);
 
       // Calcular el subtotal de esta línea y sumarlo al total de la venta
       BigDecimal subtotal = BigDecimal.valueOf(producto.getPrecio())
@@ -172,19 +175,12 @@ public class VentaController {
     venta.setCantidadProductos(cantidadProductos); // Establecer la cantidad total de productos vendidos
 
     // Obtener la fecha y realizar otras operaciones necesarias
-
-    // Realiza una solicitud HTTP al servicio REST para obtener la fecha
     RestTemplate restTemplate = new RestTemplate();
     String url = "http://localhost:9090/fecha";
     String fechaObtenida = restTemplate.getForObject(url, String.class);
-
-    // Parsea la fecha obtenida a LocalDateTime
     LocalDateTime fechaObtenidaDelServicio = LocalDateTime.parse(fechaObtenida, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-
-    // Establece la fecha obtenida en la venta
     venta.setFechaObtenidaDelServicio(fechaObtenidaDelServicio);
 
-    // Guardar la venta en el repositorio
     ventaRepo.save(venta);
 
     // Obtener el stock actualizado de cada producto y mostrarlo
@@ -204,25 +200,5 @@ public class VentaController {
     comprobanteVenta.put("cantidadProductos", cantidadProductos);
 
     return ResponseEntity.ok(comprobanteVenta);
-  }
-
-  @DeleteMapping("baja/{id}")
-  public ResponseEntity<String> eliminarVenta(@PathVariable Long id) {
-    if (ventaRepo.existsById(id)) {
-      Venta venta = ventaRepo.getOne(id);
-
-      for (LineaVenta linea : venta.getLineas()) {
-        Producto producto = linea.getProducto();
-        int nuevoStock = producto.getStock() + linea.getCantidad();
-        producto.setStock(nuevoStock);
-        productoRepo.save(producto);
-      }
-
-      ventaRepo.delete(venta);
-
-      return ResponseEntity.ok("Venta eliminada");
-    } else {
-      return ResponseEntity.status(HttpStatus.CONFLICT).body("Venta no encontrada");
-    }
   }
 }
