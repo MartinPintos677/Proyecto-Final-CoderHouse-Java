@@ -17,6 +17,6 @@ Como trabajar en Postman después de hacer funcionar el sistema(tanto en el puer
 3. Generar la venta.
 
 Se pueden hacer modificaciones en cliente o producto y también se pueden buscar el listado de los productos o clientes existentes, dado que la letra no pedía el delete de ninguna de 
-las entidades, esta no fue implementado en el proyecto.
+las entidades, esta no fue implementada en el proyecto.
 
 En la parte de Ventas, después de generadas se puede ver el listado de las ventas y también se puede buscar una venta específica por su ID.
