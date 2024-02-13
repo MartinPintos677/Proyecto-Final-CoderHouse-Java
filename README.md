@@ -10,6 +10,7 @@ Nota: el WebService externo va funcionar en el puerto 9090 mientras el proyecto 
 En este proyecto hay una carpeta llamada Postman con un archivo donde está la colección para hacer las pruebas del sistema.
 
 Primero se crea la base de datos en MySQL con el nombre coderventas
+
 Como trabajar en Postman después de hacer funcionar el sistema(tanto en el puerto 8080 para el proyecto como en el 9090 para la fecha) ?
 1. Crear un cliente.
 2. Crear uno o más productos.
