@@ -119,12 +119,15 @@ public class VentaController {
 
   @PostMapping("alta")
   public ResponseEntity<Object> crearVenta(@RequestBody Venta ventaRequest) {
-    Venta venta = new Venta();
+
     Cliente cliente = clienteRepo.findById(ventaRequest.getCliente().getId()).orElse(null);
 
     if (cliente == null) {
       return ResponseEntity.status(HttpStatus.CONFLICT).body("Cliente inexistente");
     }
+
+    Venta venta = new Venta();
+    venta.setCliente(cliente);
 
     List<LineaVenta> lineas = new ArrayList<>();
     Map<String, Object> productosVendidos = new HashMap<>(); // Para almacenar los productos vendidos y sus detalles
