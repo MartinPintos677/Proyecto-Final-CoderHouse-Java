@@ -133,25 +133,16 @@ public class VentaController {
     int cantidadProductos = 0;
 
     for (LineaVenta lineaRequest : ventaRequest.getLineas()) {
-      LineaVenta lineaVenta = new LineaVenta();
-      Producto producto = productoRepo.findById(lineaRequest.getProducto().getId())
-          .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado"));
+      Producto producto = productoRepo.findById(lineaRequest.getProducto().getId()).orElse(null);
+
+      if (producto == null) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body("Producto no encontrado");
+      }
 
       // Verificar si la cantidad solicitada supera el stock disponible
       if (producto.getStock() < lineaRequest.getCantidad()) {
         return ResponseEntity.badRequest().body("No hay suficiente stock para el producto: " + producto.getNombre());
       }
-
-      // Actualizar el stock del producto
-      int nuevoStock = producto.getStock() - lineaRequest.getCantidad();
-      producto.setStock(nuevoStock);
-      productoRepo.save(producto); // Guardar la actualización del stock
-
-      lineaVenta.setProducto(producto);
-      lineaVenta.setCantidad(lineaRequest.getCantidad());
-      lineaVenta.setVenta(venta);
-      lineaVenta.setPrecioUnitario(producto.getPrecio());
-      lineas.add(lineaVenta);
 
       // Agregar el producto y sus detalles al mapa de productos vendidos
       Map<String, Object> detalleProducto = new HashMap<>();
@@ -164,8 +155,23 @@ public class VentaController {
           .multiply(BigDecimal.valueOf(lineaRequest.getCantidad()));
       totalVenta = totalVenta.add(subtotal);
 
-      // Incrementar la cantidad total de productos vendidos
       cantidadProductos += lineaRequest.getCantidad();
+
+      LineaVenta lineaVenta = new LineaVenta();
+      lineaVenta.setProducto(producto);
+      lineaVenta.setCantidad(lineaRequest.getCantidad());
+      lineaVenta.setVenta(venta);
+      lineaVenta.setPrecioUnitario(producto.getPrecio());
+      lineas.add(lineaVenta);
+    }
+
+    // Si todos los productos tienen suficiente stock, procede con la venta
+    // Actualizar el stock de cada producto y guardar la venta
+    for (LineaVenta lineaVenta : lineas) {
+      Producto producto = lineaVenta.getProducto();
+      int nuevoStock = producto.getStock() - lineaVenta.getCantidad();
+      producto.setStock(nuevoStock);
+      productoRepo.save(producto);
     }
 
     venta.setLineas(lineas);
